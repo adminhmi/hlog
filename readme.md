@@ -3,45 +3,6 @@
 Hlog is a structured logger for Go (golang), completely API compatible with
 the standard library logger.
 
-**Hlog is in maintenance-mode.** We will not be introducing new features. It's
-simply too hard to do in a way that won't break many people's projects, which is
-the last thing you want from your Logging library (again...).
-
-This does not mean Hlog is dead. Hlog will continue to be maintained for
-security, (backwards compatible) bug fixes, and performance (where we are
-limited by the interface). 
-
-I believe Hlog' biggest contribution is to have played a part in today's
-widespread use of structured logging in Golang. There doesn't seem to be a
-reason to do a major, breaking iteration into Hlog V2, since the fantastic Go
-community has built those independently. Many fantastic alternatives have sprung
-up. Hlog would look like those, had it been re-designed with what we know
-about structured logging in Go today. Check out, for example,
-[Zerolog][zerolog], [Zap][zap], and [Apex][apex].
-
-[zerolog]: https://github.com/rs/zerolog
-[zap]: https://github.com/uber-go/zap
-[apex]: https://github.com/apex/log
-
-**Seeing weird case-sensitive problems?** It's in the past been possible to
-import Hlog as both upper- and lower-case. Due to the Go package environment,
-this caused issues in the community and we needed a standard. Some environments
-experienced problems with the upper-case variant, so the lower-case was decided.
-Everything using `Hlog` will need to use the lower-case:
-`github.com/sirupsen/Hlog`. Any package that isn't, should be changed.
-
-To fix Glide, see [these
-comments](https://github.com/sirupsen/Hlog/issues/553#issuecomment-306591437).
-For an in-depth explanation of the casing issue, see [this
-comment](https://github.com/sirupsen/Hlog/issues/570#issuecomment-313933276).
-
-Nicely color-coded in development (when a TTY is attached, otherwise just
-plain text):
-
-![Colored](http://i.imgur.com/PY7qMwd.png)
-
-With `log.SetFormatter(&log.JSONFormatter{})`, for easy parsing by logstash
-or Splunk:
 
 ```json
 {"animal":"walrus","level":"info","msg":"A group of walrus emerges from the
@@ -119,7 +80,7 @@ The simplest way to use Hlog is simply the package-level exported logger:
 package main
 
 import (
-  log "github.com/sirupsen/Hlog"
+  log "github.com/adminhmi/hlog"
 )
 
 func main() {
@@ -139,7 +100,7 @@ package main
 
 import (
   "os"
-  log "github.com/sirupsen/Hlog"
+  log "github.com/adminhmi/hlog"
 )
 
 func init() {
@@ -190,7 +151,7 @@ package main
 
 import (
   "os"
-  "github.com/sirupsen/Hlog"
+  "github.com/adminhmi/hlog"
 )
 
 // Create a new instance of the logger. You can have any number of instances.
@@ -374,16 +335,8 @@ The built-in logging formatters are:
 * `Hlog.JSONFormatter`. Logs fields as JSON.
   * All options are listed in the [generated docs](https://godoc.org/github.com/sirupsen/Hlog#JSONFormatter).
 
-Third party logging formatters:
 
-* [`FluentdFormatter`](https://github.com/joonix/log). Formats entries that can be parsed by Kubernetes and Google Container Engine.
-* [`GELF`](https://github.com/fabienm/go-Hlog-formatters). Formats entries so they comply to Graylog's [GELF 1.1 specification](http://docs.graylog.org/en/2.4/pages/gelf.html).
-* [`logstash`](https://github.com/bshuster-repo/Hlog-logstash-hook). Logs fields as [Logstash](http://logstash.net) Events.
-* [`prefixed`](https://github.com/x-cray/Hlog-prefixed-formatter). Displays log entry source along with alternative layout.
-* [`zalgo`](https://github.com/aybabtme/logzalgo). Invoking the Power of Zalgo.
-* [`nested-Hlog-formatter`](https://github.com/antonfisher/nested-Hlog-formatter). Converts Hlog fields to a nested structure.
-* [`powerful-Hlog-formatter`](https://github.com/zput/zxcTool). get fileName, log's line number and the latest function's name when print log; Sava log to files.
-* [`caption-json-formatter`](https://github.com/nolleh/caption_json_formatter). Hlog's message json formatter with human-readable caption added.
+
 
 You can define your formatter by implementing the `Formatter` interface,
 requiring a `Format` method. `Format` takes an `*Entry`. `entry.Data` is a
@@ -438,18 +391,7 @@ logger.Formatter = &Hlog.JSONFormatter{}
 log.SetOutput(logger.Writer())
 ```
 
-#### Rotation
 
-Log rotation is not provided with Hlog. Log rotation should be done by an
-external program (like `logrotate(8)`) that can compress and delete old log
-entries. It should not be a feature of the application-level logger.
-
-#### Tools
-
-| Tool | Description |
-| ---- | ----------- |
-|[Hlog Mate](https://github.com/gogap/Hlog_mate)|Hlog mate is a tool for Hlog to manage loggers, you can initial logger's level, hook and formatter by config file, the logger will be generated with different configs in different environments.|
-|[Hlog Viper Helper](https://github.com/heirko/go-contrib/tree/master/HlogHelper)|An Helper around Hlog to wrap with spf13/Viper to load configuration with fangs! And to simplify Hlog configuration use some behavior of [Hlog Mate](https://github.com/gogap/Hlog_mate). [sample](https://github.com/heirko/iris-contrib/blob/master/middleware/Hlog-logger/example) |
 
 #### Testing
 
@@ -495,19 +437,3 @@ Hlog.RegisterExitHandler(handler)
 ...
 ```
 
-#### Thread safety
-
-By default, Logger is protected by a mutex for concurrent writes. The mutex is held when calling hooks and writing logs.
-If you are sure such locking is not needed, you can call logger.SetNoLock() to disable the locking.
-
-Situation when locking is not needed includes:
-
-* You have no hooks registered, or hooks calling is already thread-safe.
-
-* Writing to logger.Out is already thread-safe, for example:
-
-  1) logger.Out is protected by locks.
-
-  2) logger.Out is an os.File handler opened with `O_APPEND` flag, and every write is smaller than 4k. (This allows multi-thread/multi-process writing)
-
-     (Refer to http://www.notthewizard.com/2014/06/17/are-files-appends-really-atomic/)
