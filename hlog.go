@@ -21,7 +21,7 @@ func (level Level) String() string {
 	}
 }
 
-// ParseLevel takes a string level and returns the Logrus log level constant.
+// ParseLevel takes a string level and returns the Hlog log level constant.
 func ParseLevel(lvl string) (Level, error) {
 	switch strings.ToLower(lvl) {
 	case "panic":
@@ -41,7 +41,7 @@ func ParseLevel(lvl string) (Level, error) {
 	}
 
 	var l Level
-	return l, fmt.Errorf("not a valid logrus Level: %q", lvl)
+	return l, fmt.Errorf("not a valid Hlog Level: %q", lvl)
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
@@ -74,7 +74,7 @@ func (level Level) MarshalText() ([]byte, error) {
 		return []byte("panic"), nil
 	}
 
-	return nil, fmt.Errorf("not a valid logrus level %d", level)
+	return nil, fmt.Errorf("not a valid Hlog level %d", level)
 }
 
 // A constant exposing all logging levels
@@ -89,7 +89,7 @@ var AllLevels = []Level{
 }
 
 // These are the different logging levels. You can set the logging level to log
-// on your instance of logger, obtained with `logrus.New()`.
+// on your instance of logger, obtained with `Hlog.New()`.
 const (
 	// PanicLevel level, highest level of severity. Logs and then calls panic with the
 	// message passed to Debug, Info, ...
@@ -118,8 +118,8 @@ var (
 	_ StdLogger = &Logger{}
 )
 
-// StdLogger is what your logrus-enabled library should take, that way
-// it'll accept a stdlib logger and a logrus logger. There's no standard
+// StdLogger is what your Hlog-enabled library should take, that way
+// it'll accept a stdlib logger and a Hlog logger. There's no standard
 // interface, this is the closest we get, unfortunately.
 type StdLogger interface {
 	Print(...interface{})

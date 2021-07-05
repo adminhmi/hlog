@@ -15,7 +15,7 @@ import (
 var (
 
 	// qualified package name, cached at first use
-	logrusPackage string
+	HlogPackage string
 
 	// Positions in the call stack when tracing to report the calling method
 	minimumCallerDepth int
@@ -26,7 +26,7 @@ var (
 
 const (
 	maximumCallerDepth int = 25
-	knownLogrusFrames  int = 4
+	knownHlogFrames    int = 4
 )
 
 func init() {
@@ -37,7 +37,7 @@ func init() {
 // Defines the key when adding errors using WithError.
 var ErrorKey = "error"
 
-// An entry is the final or intermediate Logrus logging entry. It contains all
+// An entry is the final or intermediate Hlog logging entry. It contains all
 // the fields passed with WithField{,s}. It's finally logged when Trace, Debug,
 // Info, Warn, Error, Fatal or Panic is called on it. These objects can be
 // reused and passed around as much as you wish to avoid field duplication.
@@ -175,7 +175,7 @@ func getPackageName(f string) string {
 	return f
 }
 
-// getCaller retrieves the name of the first non-logrus calling function
+// getCaller retrieves the name of the first non-Hlog calling function
 func getCaller() *runtime.Frame {
 	// cache this package's fully-qualified name
 	callerInitOnce.Do(func() {
@@ -186,12 +186,12 @@ func getCaller() *runtime.Frame {
 		for i := 0; i < maximumCallerDepth; i++ {
 			funcName := runtime.FuncForPC(pcs[i]).Name()
 			if strings.Contains(funcName, "getCaller") {
-				logrusPackage = getPackageName(funcName)
+				HlogPackage = getPackageName(funcName)
 				break
 			}
 		}
 
-		minimumCallerDepth = knownLogrusFrames
+		minimumCallerDepth = knownHlogFrames
 	})
 
 	// Restrict the lookback frames to avoid runaway lookups
@@ -203,7 +203,7 @@ func getCaller() *runtime.Frame {
 		pkg := getPackageName(f.Function)
 
 		// If the caller isn't part of this package, we're done
-		if pkg != logrusPackage {
+		if pkg != HlogPackage {
 			return &f //nolint:scopelint
 		}
 	}

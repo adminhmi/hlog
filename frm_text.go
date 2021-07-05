@@ -259,7 +259,7 @@ func (f *TextFormatter) printColored(b *bytes.Buffer, entry *Entry, keys []strin
 	}
 
 	// Remove a single newline if it already exists in the message to keep
-	// the behavior of logrus text_formatter the same as the stdlib log package
+	// the behavior of Hlog text_formatter the same as the stdlib log package
 	entry.Message = strings.TrimSuffix(entry.Message, "\n")
 
 	caller := ""

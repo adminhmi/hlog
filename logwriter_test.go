@@ -13,7 +13,7 @@ func ExampleLogger_Writer_httpServer() {
 
 	srv := http.Server{
 		// create a stdlib log.Logger that writes to
-		// logrus.Logger.
+		// Hlog.Logger.
 		ErrorLog: log.New(w, "", 0),
 	}
 
@@ -26,8 +26,8 @@ func ExampleLogger_Writer_stdlib() {
 	logger := hlog.New()
 	logger.Formatter = &hlog.JSONFormatter{}
 
-	// Use logrus for standard log output
+	// Use Hlog for standard log output
 	// Note that `log` here references stdlib's log
-	// Not logrus imported under the name `log`.
+	// Not Hlog imported under the name `log`.
 	log.SetOutput(logger.Writer())
 }

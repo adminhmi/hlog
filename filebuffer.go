@@ -26,7 +26,7 @@ func (p *defaultPool) Get() *bytes.Buffer {
 	return p.pool.Get().(*bytes.Buffer)
 }
 
-// SetBufferPool allows to replace the default logrus buffer pool
+// SetBufferPool allows to replace the default Hlog buffer pool
 // to better meets the specific needs of an application.
 func SetBufferPool(bp BufferPool) {
 	bufferPool = bp
