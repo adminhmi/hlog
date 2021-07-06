@@ -228,8 +228,8 @@ Hlog comes with [built-in hooks](hooks/). Add those, or your custom hook, in
 import (
   log "github.com/sirupsen/Hlog"
   "gopkg.in/gemnasium/Hlog-airbrake-hooks.v2" // the package is named "airbrake"
-  Hlog_syslog "github.com/sirupsen/Hlog/hooks/syslog"
-  "log/syslog"
+  Hlog_syslog "github.com/sirupsen/Hlog/hooks/systemlog"
+  "log/systemlog"
 )
 
 func init() {
@@ -240,13 +240,13 @@ func init() {
 
   hook, err := Hlog_syslog.NewSyslogHook("udp", "localhost:514", syslog.LOG_INFO, "")
   if err != nil {
-    log.Error("Unable to connect to local syslog daemon")
+    log.Error("Unable to connect to local systemlog daemon")
   } else {
     log.AddHook(hook)
   }
 }
 ```
-Note: Syslog hook also support connecting to local syslog (Ex. "/dev/log" or "/var/run/syslog" or "/var/run/log"). For the detail, please check the [syslog hook README](hooks/syslog/README.md).
+Note: Syslog hook also support connecting to local syslog (Ex. "/dev/log" or "/var/run/syslog" or "/var/run/log"). For the detail, please check the [syslog hook README](hooks/systemlog/README.md).
 
 A list of currently known service hooks can be found in this wiki [page](https://github.com/sirupsen/Hlog/wiki/Hooks)
 
