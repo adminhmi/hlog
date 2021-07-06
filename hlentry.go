@@ -15,7 +15,7 @@ import (
 var (
 
 	// qualified package name, cached at first use
-	HlogPackage string
+	logPackage string
 
 	// Positions in the call stack when tracing to report the calling method
 	minimumCallerDepth int
@@ -186,7 +186,7 @@ func getCaller() *runtime.Frame {
 		for i := 0; i < maximumCallerDepth; i++ {
 			funcName := runtime.FuncForPC(pcs[i]).Name()
 			if strings.Contains(funcName, "getCaller") {
-				HlogPackage = getPackageName(funcName)
+				logPackage = getPackageName(funcName)
 				break
 			}
 		}
@@ -203,7 +203,7 @@ func getCaller() *runtime.Frame {
 		pkg := getPackageName(f.Function)
 
 		// If the caller isn't part of this package, we're done
-		if pkg != HlogPackage {
+		if pkg != logPackage {
 			return &f //nolint:scopelint
 		}
 	}
