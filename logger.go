@@ -365,7 +365,7 @@ func (logger *Logger) GetLevel() Level {
 	return logger.level()
 }
 
-// AddHook adds a hook to the logger hooks.
+// AddHook adds a hooks to the logger hooks.
 func (logger *Logger) AddHook(hook Hook) {
 	logger.mu.Lock()
 	defer logger.mu.Unlock()

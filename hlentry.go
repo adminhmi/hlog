@@ -63,7 +63,7 @@ type Entry struct {
 	// When formatter is called in entry.log(), a Buffer may be set to entry
 	Buffer *bytes.Buffer
 
-	// Contains the context set by the user. Useful for hook processing etc.
+	// Contains the context set by the user. Useful for hooks processing etc.
 	Context context.Context
 
 	// err may contain a field formatting error
@@ -279,7 +279,7 @@ func (entry *Entry) fireHooks() {
 
 	err := tmpHooks.Fire(entry.Level, entry)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to fire hook: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to fire hooks: %v\n", err)
 	}
 }
 

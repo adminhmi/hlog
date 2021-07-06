@@ -227,14 +227,14 @@ Hlog comes with [built-in hooks](hooks/). Add those, or your custom hook, in
 ```go
 import (
   log "github.com/sirupsen/Hlog"
-  "gopkg.in/gemnasium/Hlog-airbrake-hook.v2" // the package is named "airbrake"
+  "gopkg.in/gemnasium/Hlog-airbrake-hooks.v2" // the package is named "airbrake"
   Hlog_syslog "github.com/sirupsen/Hlog/hooks/syslog"
   "log/syslog"
 )
 
 func init() {
 
-  // Use the Airbrake hook to report errors that have Error severity or above to
+  // Use the Airbrake hooks to report errors that have Error severity or above to
   // an exception tracker. You can create custom hooks, see the Hooks section.
   log.AddHook(airbrake.NewHook(123, "xyz", "production"))
 
