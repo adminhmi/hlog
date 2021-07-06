@@ -3,10 +3,13 @@ package hlog
 import (
 	"bytes"
 	"fmt"
+	"github.com/mgutz/ansi"
+	"golang.org/x/crypto/ssh/terminal"
+	"io"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +24,56 @@ const (
 )
 
 var baseTimestamp time.Time
+
+var (
+	defaultColorScheme *ColorScheme = &ColorScheme{
+		InfoLevelStyle:  "green",
+		WarnLevelStyle:  "yellow",
+		ErrorLevelStyle: "red",
+		FatalLevelStyle: "red",
+		PanicLevelStyle: "red",
+		DebugLevelStyle: "blue",
+		PrefixStyle:     "cyan",
+		TimestampStyle:  "black+h",
+	}
+	noColorsColorScheme *compiledColorScheme = &compiledColorScheme{
+		InfoLevelColor:  ansi.ColorFunc(""),
+		WarnLevelColor:  ansi.ColorFunc(""),
+		ErrorLevelColor: ansi.ColorFunc(""),
+		FatalLevelColor: ansi.ColorFunc(""),
+		PanicLevelColor: ansi.ColorFunc(""),
+		DebugLevelColor: ansi.ColorFunc(""),
+		PrefixColor:     ansi.ColorFunc(""),
+		TimestampColor:  ansi.ColorFunc(""),
+	}
+	defaultCompiledColorScheme *compiledColorScheme = compileColorScheme(defaultColorScheme)
+)
+
+func miniTS() int {
+	return int(time.Since(baseTimestamp) / time.Second)
+}
+
+type ColorScheme struct {
+	InfoLevelStyle  string
+	WarnLevelStyle  string
+	ErrorLevelStyle string
+	FatalLevelStyle string
+	PanicLevelStyle string
+	DebugLevelStyle string
+	PrefixStyle     string
+	TimestampStyle  string
+}
+
+type compiledColorScheme struct {
+	InfoLevelColor  func(string) string
+	WarnLevelColor  func(string) string
+	ErrorLevelColor func(string) string
+	FatalLevelColor func(string) string
+	PanicLevelColor func(string) string
+	DebugLevelColor func(string) string
+	PrefixColor     func(string) string
+	TimestampColor  func(string) string
+}
 
 func init() {
 	baseTimestamp = time.Now()
@@ -99,9 +152,35 @@ type TextFormatter struct {
 
 	// The max length of the level text, generated dynamically on init
 	levelTextMaxLength int
+
+	// Force formatted layout, even for non-TTY output.
+	ForceFormatting bool
+
+	// Disable the conversion of the log levels to uppercase
+	DisableUppercase bool
+
+	// Can be set to the override the default quoting character "
+	// with something else. For example: ', or `.
+	QuoteCharacter string
+
+	// Pad msg field with spaces on the right for display.
+	// The value for this parameter will be the size of padding.
+	// Its default value is zero, which means no padding will be applied for msg.
+	SpacePadding int
+
+	// Color scheme to use.
+	colorScheme *compiledColorScheme
+
+	sync.Once
 }
 
 func (f *TextFormatter) init(entry *Entry) {
+	if len(f.QuoteCharacter) == 0 {
+		f.QuoteCharacter = "\""
+	}
+	if entry.Logger != nil {
+		f.isTerminal = f.checkIfTerminal(entry.Logger.Out)
+	}
 	if entry.Logger != nil {
 		f.isTerminal = checkIfTerminal(entry.Logger.Out)
 	}
@@ -112,6 +191,41 @@ func (f *TextFormatter) init(entry *Entry) {
 			f.levelTextMaxLength = levelTextLength
 		}
 	}
+}
+func getCompiledColor(main string, fallback string) func(string) string {
+	var style string
+	if main != "" {
+		style = main
+	} else {
+		style = fallback
+	}
+	return ansi.ColorFunc(style)
+}
+
+func compileColorScheme(s *ColorScheme) *compiledColorScheme {
+	return &compiledColorScheme{
+		InfoLevelColor:  getCompiledColor(s.InfoLevelStyle, defaultColorScheme.InfoLevelStyle),
+		WarnLevelColor:  getCompiledColor(s.WarnLevelStyle, defaultColorScheme.WarnLevelStyle),
+		ErrorLevelColor: getCompiledColor(s.ErrorLevelStyle, defaultColorScheme.ErrorLevelStyle),
+		FatalLevelColor: getCompiledColor(s.FatalLevelStyle, defaultColorScheme.FatalLevelStyle),
+		PanicLevelColor: getCompiledColor(s.PanicLevelStyle, defaultColorScheme.PanicLevelStyle),
+		DebugLevelColor: getCompiledColor(s.DebugLevelStyle, defaultColorScheme.DebugLevelStyle),
+		PrefixColor:     getCompiledColor(s.PrefixStyle, defaultColorScheme.PrefixStyle),
+		TimestampColor:  getCompiledColor(s.TimestampStyle, defaultColorScheme.TimestampStyle),
+	}
+}
+
+func (f *TextFormatter) checkIfTerminal(w io.Writer) bool {
+	switch v := w.(type) {
+	case *os.File:
+		return terminal.IsTerminal(int(v.Fd()))
+	default:
+		return false
+	}
+}
+
+func (f *TextFormatter) SetColorScheme(colorScheme *ColorScheme) {
+	f.colorScheme = compileColorScheme(colorScheme)
 }
 
 func (f *TextFormatter) isColored() bool {
@@ -131,209 +245,178 @@ func (f *TextFormatter) isColored() bool {
 
 // Format renders a single log entry
 func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
-	data := make(Fields)
-	for k, v := range entry.Data {
-		data[k] = v
-	}
-	prefixFieldClashes(data, f.FieldMap, entry.HasCaller())
-	keys := make([]string, 0, len(data))
-	for k := range data {
+	var b *bytes.Buffer
+	var keys []string = make([]string, 0, len(entry.Data))
+	for k := range entry.Data {
 		keys = append(keys, k)
 	}
-
-	var funcVal, fileVal string
-
-	fixedKeys := make([]string, 0, 4+len(data))
-	if !f.DisableTimestamp {
-		fixedKeys = append(fixedKeys, f.FieldMap.resolve(FieldKeyTime))
-	}
-	fixedKeys = append(fixedKeys, f.FieldMap.resolve(FieldKeyLevel))
-	if entry.Message != "" {
-		fixedKeys = append(fixedKeys, f.FieldMap.resolve(FieldKeyMsg))
-	}
-	if entry.err != "" {
-		fixedKeys = append(fixedKeys, f.FieldMap.resolve(FieldKeyHmiLogError))
-	}
-	if entry.HasCaller() {
-		if f.CallerPrettyfier != nil {
-			funcVal, fileVal = f.CallerPrettyfier(entry.Caller)
-		} else {
-			funcVal = entry.Caller.Function
-			fileVal = fmt.Sprintf("%s:%d", entry.Caller.File, entry.Caller.Line)
-		}
-
-		if funcVal != "" {
-			fixedKeys = append(fixedKeys, f.FieldMap.resolve(FieldKeyFunc))
-		}
-		if fileVal != "" {
-			fixedKeys = append(fixedKeys, f.FieldMap.resolve(FieldKeyFile))
-		}
-	}
+	lastKeyIdx := len(keys) - 1
 
 	if !f.DisableSorting {
-		if f.SortingFunc == nil {
-			sort.Strings(keys)
-			fixedKeys = append(fixedKeys, keys...)
-		} else {
-			if !f.isColored() {
-				fixedKeys = append(fixedKeys, keys...)
-				f.SortingFunc(fixedKeys)
-			} else {
-				f.SortingFunc(keys)
-			}
-		}
-	} else {
-		fixedKeys = append(fixedKeys, keys...)
+		sort.Strings(keys)
 	}
-
-	var b *bytes.Buffer
 	if entry.Buffer != nil {
 		b = entry.Buffer
 	} else {
 		b = &bytes.Buffer{}
 	}
 
-	f.terminalInitOnce.Do(func() { f.init(entry) })
+	prefixFieldclashes(entry.Data)
+
+	f.Do(func() { f.init(entry) })
+
+	isFormatted := f.ForceFormatting || f.isTerminal
 
 	timestampFormat := f.TimestampFormat
 	if timestampFormat == "" {
 		timestampFormat = defaultTimestampFormat
 	}
-	if f.isColored() {
-		f.printColored(b, entry, keys, data, timestampFormat)
-	} else {
-
-		for _, key := range fixedKeys {
-			var value interface{}
-			switch {
-			case key == f.FieldMap.resolve(FieldKeyTime):
-				value = entry.Time.Format(timestampFormat)
-			case key == f.FieldMap.resolve(FieldKeyLevel):
-				value = entry.Level.String()
-			case key == f.FieldMap.resolve(FieldKeyMsg):
-				value = entry.Message
-			case key == f.FieldMap.resolve(FieldKeyHmiLogError):
-				value = entry.err
-			case key == f.FieldMap.resolve(FieldKeyFunc) && entry.HasCaller():
-				value = funcVal
-			case key == f.FieldMap.resolve(FieldKeyFile) && entry.HasCaller():
-				value = fileVal
-			default:
-				value = data[key]
+	if isFormatted {
+		isColored := (f.ForceColors || f.isTerminal) && !f.DisableColors
+		var colorScheme *compiledColorScheme
+		if isColored {
+			if f.colorScheme == nil {
+				colorScheme = defaultCompiledColorScheme
+			} else {
+				colorScheme = f.colorScheme
 			}
-			f.appendKeyValue(b, key, value)
+		} else {
+			colorScheme = noColorsColorScheme
+		}
+		f.printColored(b, entry, keys, timestampFormat, colorScheme)
+	} else {
+		if !f.DisableTimestamp {
+			f.appendKeyValue(b, "time", entry.Time.Format(timestampFormat), true)
+		}
+		f.appendKeyValue(b, "level", entry.Level.String(), true)
+		if entry.Message != "" {
+			f.appendKeyValue(b, "msg", entry.Message, lastKeyIdx >= 0)
+		}
+		for i, key := range keys {
+			f.appendKeyValue(b, key, entry.Data[key], lastKeyIdx != i)
 		}
 	}
 
 	b.WriteByte('\n')
 	return b.Bytes(), nil
 }
-
-func (f *TextFormatter) printColored(b *bytes.Buffer, entry *Entry, keys []string, data Fields, timestampFormat string) {
-	var levelColor int
+func (f *TextFormatter) printColored(b *bytes.Buffer, entry *Entry, keys []string, timestampFormat string, colorScheme *compiledColorScheme) {
+	var levelColor func(string) string
+	var levelText string
 	switch entry.Level {
-	case DebugLevel, TraceLevel:
-		levelColor = gray
-	case WarnLevel:
-		levelColor = yellow
-	case ErrorLevel, FatalLevel, PanicLevel:
-		levelColor = red
 	case InfoLevel:
-		levelColor = blue
+		levelColor = colorScheme.InfoLevelColor
+	case WarnLevel:
+		levelColor = colorScheme.WarnLevelColor
+	case ErrorLevel:
+		levelColor = colorScheme.ErrorLevelColor
+	case FatalLevel:
+		levelColor = colorScheme.FatalLevelColor
+	case PanicLevel:
+		levelColor = colorScheme.PanicLevelColor
 	default:
-		levelColor = blue
+		levelColor = colorScheme.DebugLevelColor
 	}
 
-	levelText := strings.ToUpper(entry.Level.String())
-	if !f.DisableLevelTruncation && !f.PadLevelText {
-		levelText = levelText[0:4]
-	}
-	if f.PadLevelText {
-		// Generates the format string used in the next line, for example "%-6s" or "%-7s".
-		// Based on the max level text length.
-		formatString := "%-" + strconv.Itoa(f.levelTextMaxLength) + "s"
-		// Formats the level text by appending spaces up to the max length, for example:
-		// 	- "INFO   "
-		//	- "WARNING"
-		levelText = fmt.Sprintf(formatString, levelText)
+	if entry.Level != WarnLevel {
+		levelText = entry.Level.String()
+	} else {
+		levelText = "warn"
 	}
 
-	// Remove a single newline if it already exists in the message to keep
-	// the behavior of Hlog text_formatter the same as the stdlib log package
-	entry.Message = strings.TrimSuffix(entry.Message, "\n")
+	if !f.DisableUppercase {
+		levelText = strings.ToUpper(levelText)
+	}
 
-	caller := ""
-	if entry.HasCaller() {
-		funcVal := fmt.Sprintf("%s()", entry.Caller.Function)
-		fileVal := fmt.Sprintf("%s:%d", entry.Caller.File, entry.Caller.Line)
+	level := levelColor(fmt.Sprintf("%5s", levelText))
+	prefix := ""
+	message := entry.Message
 
-		if f.CallerPrettyfier != nil {
-			funcVal, fileVal = f.CallerPrettyfier(entry.Caller)
+	if prefixValue, ok := entry.Data["prefix"]; ok {
+		prefix = colorScheme.PrefixColor(" " + prefixValue.(string) + ":")
+	} else {
+		prefixValue, trimmedMsg := extractPrefix(entry.Message)
+		if len(prefixValue) > 0 {
+			prefix = colorScheme.PrefixColor(" " + prefixValue + ":")
+			message = trimmedMsg
 		}
+	}
 
-		if fileVal == "" {
-			caller = funcVal
-		} else if funcVal == "" {
-			caller = fileVal
+	messageFormat := "%s"
+	if f.SpacePadding != 0 {
+		messageFormat = fmt.Sprintf("%%-%ds", f.SpacePadding)
+	}
+
+	if f.DisableTimestamp {
+		fmt.Fprintf(b, "%s%s "+messageFormat, level, prefix, message)
+	} else {
+		var timestamp string
+		if !f.FullTimestamp {
+			timestamp = fmt.Sprintf("[%04d]", miniTS())
 		} else {
-			caller = fileVal + " " + funcVal
+			timestamp = fmt.Sprintf("[%s]", entry.Time.Format(timestampFormat))
 		}
-	}
-
-	switch {
-	case f.DisableTimestamp:
-		fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m%s %-44s ", levelColor, levelText, caller, entry.Message)
-	case !f.FullTimestamp:
-		fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m[%04d]%s %-44s ", levelColor, levelText, int(entry.Time.Sub(baseTimestamp)/time.Second), caller, entry.Message)
-	default:
-		fmt.Fprintf(b, "\x1b[%dm%s\x1b[0m[%s]%s %-44s ", levelColor, levelText, entry.Time.Format(timestampFormat), caller, entry.Message)
+		fmt.Fprintf(b, "%s %s%s "+messageFormat, colorScheme.TimestampColor(timestamp), level, prefix, message)
 	}
 	for _, k := range keys {
-		v := data[k]
-		fmt.Fprintf(b, " \x1b[%dm%s\x1b[0m=", levelColor, k)
-		f.appendValue(b, v)
+		if k != "prefix" {
+			v := entry.Data[k]
+			fmt.Fprintf(b, " %s=%+v", levelColor(k), v)
+		}
 	}
 }
 
-func (f *TextFormatter) needsQuoting(text string) bool {
-	if f.ForceQuote {
-		return true
+func extractPrefix(msg string) (string, string) {
+	prefix := ""
+	regex := regexp.MustCompile("^\\[(.*?)\\]")
+	if regex.MatchString(msg) {
+		match := regex.FindString(msg)
+		prefix, msg = match[1:len(match)-1], strings.TrimSpace(msg[len(match):])
 	}
+	return prefix, msg
+}
+
+func (f *TextFormatter) needsQuoting(text string) bool {
 	if f.QuoteEmptyFields && len(text) == 0 {
 		return true
-	}
-	if f.DisableQuote {
-		return false
 	}
 	for _, ch := range text {
 		if !((ch >= 'a' && ch <= 'z') ||
 			(ch >= 'A' && ch <= 'Z') ||
 			(ch >= '0' && ch <= '9') ||
-			ch == '-' || ch == '.' || ch == '_' || ch == '/' || ch == '@' || ch == '^' || ch == '+') {
+			ch == '-' || ch == '.') {
 			return true
 		}
 	}
 	return false
 }
 
-func (f *TextFormatter) appendKeyValue(b *bytes.Buffer, key string, value interface{}) {
-	if b.Len() > 0 {
-		b.WriteByte(' ')
-	}
+func (f *TextFormatter) appendKeyValue(b *bytes.Buffer, key string, value interface{}, appendSpace bool) {
 	b.WriteString(key)
 	b.WriteByte('=')
 	f.appendValue(b, value)
+
+	if appendSpace {
+		b.WriteByte(' ')
+	}
 }
 
 func (f *TextFormatter) appendValue(b *bytes.Buffer, value interface{}) {
-	stringVal, ok := value.(string)
-	if !ok {
-		stringVal = fmt.Sprint(value)
-	}
-
-	if !f.needsQuoting(stringVal) {
-		b.WriteString(stringVal)
-	} else {
-		b.WriteString(fmt.Sprintf("%q", stringVal))
+	switch value := value.(type) {
+	case string:
+		if !f.needsQuoting(value) {
+			b.WriteString(value)
+		} else {
+			fmt.Fprintf(b, "%s%v%s", f.QuoteCharacter, value, f.QuoteCharacter)
+		}
+	case error:
+		errmsg := value.Error()
+		if !f.needsQuoting(errmsg) {
+			b.WriteString(errmsg)
+		} else {
+			fmt.Fprintf(b, "%s%v%s", f.QuoteCharacter, errmsg, f.QuoteCharacter)
+		}
+	default:
+		fmt.Fprint(b, value)
 	}
 }

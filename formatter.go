@@ -75,4 +75,19 @@ func prefixFieldClashes(data Fields, fieldMap FieldMap, reportCaller bool) {
 			data["fields."+fileKey] = l
 		}
 	}
+
+}
+
+func prefixFieldclashes(data Fields) {
+	if t, ok := data["time"]; ok {
+		data["fields.time"] = t
+	}
+
+	if m, ok := data["msg"]; ok {
+		data["fields.msg"] = m
+	}
+
+	if l, ok := data["level"]; ok {
+		data["fields.level"] = l
+	}
 }
