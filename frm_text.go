@@ -3,8 +3,6 @@ package hlog
 import (
 	"bytes"
 	"fmt"
-	"github.com/mgutz/ansi"
-	"golang.org/x/crypto/ssh/terminal"
 	"io"
 	"os"
 	"regexp"
@@ -13,17 +11,34 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
+
+	"github.com/mgutz/ansi"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
-const (
-	red    = 31
-	yellow = 33
-	blue   = 36
-	gray   = 37
-)
+type ColorScheme struct {
+	InfoLevelStyle  string
+	WarnLevelStyle  string
+	ErrorLevelStyle string
+	FatalLevelStyle string
+	PanicLevelStyle string
+	DebugLevelStyle string
+	PrefixStyle     string
+	TimestampStyle  string
+}
 
-var baseTimestamp time.Time
+type compiledColorScheme struct {
+	InfoLevelColor  func(string) string
+	WarnLevelColor  func(string) string
+	ErrorLevelColor func(string) string
+	FatalLevelColor func(string) string
+	PanicLevelColor func(string) string
+	DebugLevelColor func(string) string
+	PrefixColor     func(string) string
+	TimestampColor  func(string) string
+}
+
+var baseTimestamp time.Time = time.Now()
 
 var (
 	defaultColorScheme *ColorScheme = &ColorScheme{
@@ -51,28 +66,6 @@ var (
 
 func miniTS() int {
 	return int(time.Since(baseTimestamp) / time.Second)
-}
-
-type ColorScheme struct {
-	InfoLevelStyle  string
-	WarnLevelStyle  string
-	ErrorLevelStyle string
-	FatalLevelStyle string
-	PanicLevelStyle string
-	DebugLevelStyle string
-	PrefixStyle     string
-	TimestampStyle  string
-}
-
-type compiledColorScheme struct {
-	InfoLevelColor  func(string) string
-	WarnLevelColor  func(string) string
-	ErrorLevelColor func(string) string
-	FatalLevelColor func(string) string
-	PanicLevelColor func(string) string
-	DebugLevelColor func(string) string
-	PrefixColor     func(string) string
-	TimestampColor  func(string) string
 }
 
 func init() {
@@ -181,17 +174,9 @@ func (f *TextFormatter) init(entry *Entry) {
 	if entry.Logger != nil {
 		f.isTerminal = f.checkIfTerminal(entry.Logger.Out)
 	}
-	if entry.Logger != nil {
-		f.isTerminal = checkIfTerminal(entry.Logger.Out)
-	}
-	// Get the max length of the level text
-	for _, level := range AllLevels {
-		levelTextLength := utf8.RuneCount([]byte(level.String()))
-		if levelTextLength > f.levelTextMaxLength {
-			f.levelTextMaxLength = levelTextLength
-		}
-	}
+
 }
+
 func getCompiledColor(main string, fallback string) func(string) string {
 	var style string
 	if main != "" {
@@ -228,21 +213,6 @@ func (f *TextFormatter) SetColorScheme(colorScheme *ColorScheme) {
 	f.colorScheme = compileColorScheme(colorScheme)
 }
 
-func (f *TextFormatter) isColored() bool {
-	isColored := f.ForceColors || (f.isTerminal && (runtime.GOOS != "windows"))
-
-	if f.EnvironmentOverrideColors {
-		switch force, ok := os.LookupEnv("CLICOLOR_FORCE"); {
-		case ok && force != "0":
-			isColored = true
-		case ok && force == "0", os.Getenv("CLICOLOR") == "0":
-			isColored = false
-		}
-	}
-
-	return isColored && !f.DisableColors
-}
-
 // Format renders a single log entry
 func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 	var b *bytes.Buffer
@@ -261,7 +231,7 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	prefixFieldclashes(entry.Data)
+	prefixFieldClashesFixed(entry.Data)
 
 	f.Do(func() { f.init(entry) })
 
@@ -300,6 +270,7 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 	b.WriteByte('\n')
 	return b.Bytes(), nil
 }
+
 func (f *TextFormatter) printColored(b *bytes.Buffer, entry *Entry, keys []string, timestampFormat string, colorScheme *compiledColorScheme) {
 	var levelColor func(string) string
 	var levelText string

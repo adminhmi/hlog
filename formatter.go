@@ -78,7 +78,7 @@ func prefixFieldClashes(data Fields, fieldMap FieldMap, reportCaller bool) {
 
 }
 
-func prefixFieldclashes(data Fields) {
+func prefixFieldClashesFixed(data Fields) {
 	if t, ok := data["time"]; ok {
 		data["fields.time"] = t
 	}
