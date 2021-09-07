@@ -1,4 +1,4 @@
-package hlog
+package cmd
 
 func isTerminal(fd int) bool {
 	_, err := unix.IoctlGetTermio(fd, unix.TCGETA)

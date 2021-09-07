@@ -9,43 +9,25 @@ import (
 	"time"
 )
 
-// LogFunction For big messages, it can be more efficient to pass a function
-// and only call it if the log level is actually enables rather than
-// generating the log message and then checking if the level is enabled
 type LogFunction func() []interface{}
 
 type Logger struct {
-	// The logs are `io.Copy`'d to this in a mutex. It's common to set this to a
-	// file, or leave it default which is `os.Stderr`. You can also set this to
-	// something more adventurous, such as logging to Kafka.
 	Out io.Writer
-	// Hooks for the logger instance. These allow firing events based on logging
-	// levels and log entries. For example, to send errors to an error tracking
-	// service, log to StatsD or dump the core on fatal errors.
+
 	Hooks LevelHooks
-	// All log entries pass through the formatter before logged to Out. The
-	// included formatters are `TextFormatter` and `JSONFormatter` for which
-	// TextFormatter is the default. In development (when a TTY is attached) it
-	// logs with colors, but to a file it wouldn't. You can easily implement your
-	// own that implements the `Formatter` interface, see the `README` or included
-	// formatters for examples.
+
 	Formatter Formatter
 
-	// Flag for whether to log caller info (off by default)
 	ReportCaller bool
 
-	// The logging level the logger should log at. This is typically (and defaults
-	// to) `Hlog.Info`, which allows Info(), Warn(), Error() and Fatal() to be
-	// logged.
 	Level Level
-	// Used to sync writing to the log. Locking is enabled by Default
+
 	mu MutexWrap
-	// Reusable empty entry
+
 	entryPool sync.Pool
-	// Function to exit the application, defaults to `os.Exit()`
+
 	ExitFunc exitFunc
-	// The buffer pool used to format the log. If it is nil, the default global
-	// buffer pool will be used.
+
 	BufferPool BufferPool
 }
 
@@ -72,18 +54,6 @@ func (mw *MutexWrap) Disable() {
 	mw.disabled = true
 }
 
-// Creates a new logger. Configuration should be set by changing `Formatter`,
-// `Out` and `Hooks` directly on the default logger instance. You can also just
-// instantiate your own:
-//
-//    var log = &Hlog.Logger{
-//      Out: os.Stderr,
-//      Formatter: new(Hlog.TextFormatter),
-//      Hooks: make(Hlog.LevelHooks),
-//      Level: Hlog.DebugLevel,
-//    }
-//
-// It's recommended to make this a global instance called `log`.
 func New() *Logger {
 	return &Logger{
 		Out:          os.Stderr,
@@ -108,26 +78,18 @@ func (logger *Logger) releaseEntry(entry *Entry) {
 	logger.entryPool.Put(entry)
 }
 
-// WithField allocates a new entry and adds a field to it.
-// Debug, Print, Info, Warn, Error, Fatal or Panic must be then applied to
-// this new returned entry.
-// If you want multiple fields, use `WithFields`.
 func (logger *Logger) WithField(key string, value interface{}) *Entry {
 	entry := logger.newEntry()
 	defer logger.releaseEntry(entry)
 	return entry.WithField(key, value)
 }
 
-// Adds a struct of fields to the log entry. All it does is call `WithField` for
-// each `Field`.
 func (logger *Logger) WithFields(fields Fields) *Entry {
 	entry := logger.newEntry()
 	defer logger.releaseEntry(entry)
 	return entry.WithFields(fields)
 }
 
-// Add an error as single field to the log entry.  All it does is call
-// `WithError` for the given `error`.
 func (logger *Logger) WithError(err error) *Entry {
 	entry := logger.newEntry()
 	defer logger.releaseEntry(entry)
@@ -344,9 +306,6 @@ func (logger *Logger) Exit(code int) {
 	logger.ExitFunc(code)
 }
 
-//When file is opened with appending mode, it's safe to
-//write concurrently to a file (within 4k message on Linux).
-//In these cases user can choose to disable the lock.
 func (logger *Logger) SetNoLock() {
 	logger.mu.Disable()
 }

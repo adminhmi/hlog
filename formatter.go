@@ -30,7 +30,7 @@ type Formatter interface {
 // This is to not silently overwrite `time`, `msg`, `func` and `level` fields when
 // dumping it. If this code wasn't there doing:
 //
-//  Hlog.WithField("level", 1).Info("hello")
+//  hlog.WithField("level", 1).Info("hello")
 //
 // Would just silently drop the user provided level. Instead with this code
 // it'll logged as:
@@ -58,10 +58,10 @@ func prefixFieldClashes(data Fields, fieldMap FieldMap, reportCaller bool) {
 		delete(data, levelKey)
 	}
 
-	HlogErrKey := fieldMap.resolve(FieldKeyHmiLogError)
-	if l, ok := data[HlogErrKey]; ok {
-		data["fields."+HlogErrKey] = l
-		delete(data, HlogErrKey)
+	hlogErrKey := fieldMap.resolve(FieldKeyHmiLogError)
+	if l, ok := data[hlogErrKey]; ok {
+		data["fields."+hlogErrKey] = l
+		delete(data, hlogErrKey)
 	}
 
 	// If reportCaller is not set, 'func' will not conflict.

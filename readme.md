@@ -1,6 +1,6 @@
 # Hmi loging
 
-Hlog is a structured logger for Go (golang), completely API compatible with
+hlog is a structured logger for Go (golang), completely API compatible with
 the standard library logger.
 
 
@@ -51,12 +51,12 @@ log.SetReportCaller(true)
 This adds the caller as 'method' like so:
 
 ```json
-{"animal":"penguin","level":"fatal","method":"github.com/sirupsen/arcticcreatures.migrate","msg":"a penguin swims by",
+{"animal":"penguin","level":"fatal","method":"github.com/adminhmi/arcticcreatures.migrate","msg":"a penguin swims by",
 "time":"2014-03-10 19:57:38.562543129 -0400 EDT"}
 ```
 
 ```text
-time="2015-03-26T01:27:38-04:00" level=fatal method=github.com/sirupsen/arcticcreatures.migrate msg="a penguin swims by" animal=penguin
+time="2015-03-26T01:27:38-04:00" level=fatal method=github.com/adminhmi/arcticcreatures.migrate msg="a penguin swims by" animal=penguin
 ```
 Note that this does add measurable overhead - the cost will depend on the version of Go, but is
 between 20 and 40% in recent tests with 1.6 and 1.7.  You can validate this in your
@@ -70,11 +70,11 @@ go test -bench=.*CallerTracing
 
 The organization's name was changed to lower-case--and this will not be changed
 back. If you are getting import conflicts due to case sensitivity, please use
-the lower-case import: `github.com/sirupsen/Hlog`.
+the lower-case import: `github.com/adminhmi/hlog`.
 
 #### Example
 
-The simplest way to use Hlog is simply the package-level exported logger:
+The simplest way to use hlog is simply the package-level exported logger:
 
 ```go
 package main
@@ -91,8 +91,8 @@ func main() {
 ```
 
 Note that it's completely api-compatible with the stdlib logger, so you can
-replace your `log` imports everywhere with `log "github.com/sirupsen/Hlog"`
-and you'll now have the flexibility of Hlog. You can customize it all you
+replace your `log` imports everywhere with `log "github.com/adminhmi/hlog"`
+and you'll now have the flexibility of hlog. You can customize it all you
 want:
 
 ```go
@@ -132,7 +132,7 @@ func main() {
   }).Fatal("The ice breaks!")
 
   // A common pattern is to re-use fields between logging statements by re-using
-  // the Hlog.Entry returned from WithFields()
+  // the hlog.Entry returned from WithFields()
   contextLogger := log.WithFields(log.Fields{
     "common": "this is a common field",
     "other": "I also should be logged always",
@@ -144,7 +144,7 @@ func main() {
 ```
 
 For more advanced usage such as logging to multiple locations from the same
-application, you can also create an instance of the `Hlog` Logger:
+application, you can also create an instance of the `hlog` Logger:
 
 ```go
 package main
@@ -155,7 +155,7 @@ import (
 )
 
 // Create a new instance of the logger. You can have any number of instances.
-var log = Hlog.New()
+var log = hlog.New()
 
 func main() {
   // The API for setting attributes is a little different than the package level
@@ -163,14 +163,14 @@ func main() {
   log.Out = os.Stdout
 
   // You could set this to any `io.Writer` such as a file
-  // file, err := os.OpenFile("Hlog.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+  // file, err := os.OpenFile("hlog.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
   // if err == nil {
   //  log.Out = file
   // } else {
   //  log.Info("Failed to log to file, using default stderr")
   // }
 
-  log.WithFields(Hlog.Fields{
+  log.WithFields(hlog.Fields{
     "animal": "walrus",
     "size":   10,
   }).Info("A group of walrus emerges from the ocean")
@@ -179,7 +179,7 @@ func main() {
 
 #### Fields
 
-Hlog encourages careful, structured logging through logging fields instead of
+hlog encourages careful, structured logging through logging fields instead of
 long, unparseable error messages. For example, instead of: `log.Fatalf("Failed
 to send event %s to topic %s with key %d")`, you should log the much more
 discoverable:
@@ -197,9 +197,9 @@ much more useful logging messages. We've been in countless situations where just
 a single added field to a log statement that was already there would've saved us
 hours. The `WithFields` call is optional.
 
-In general, with Hlog using any of the `printf`-family functions should be
+In general, with hlog using any of the `printf`-family functions should be
 seen as a hint you should add a field, however, you can still use the
-`printf`-family functions with Hlog.
+`printf`-family functions with hlog.
 
 #### Default Fields
 
@@ -207,7 +207,7 @@ Often it's helpful to have fields _always_ attached to log statements in an
 application or parts of one. For example, you may want to always log the
 `request_id` and `user_ip` in the context of a request. Instead of writing
 `log.WithFields(log.Fields{"request_id": request_id, "user_ip": user_ip})` on
-every line, you can create a `Hlog.Entry` to pass around instead:
+every line, you can create a `hlog.Entry` to pass around instead:
 
 ```go
 requestLogger := log.WithFields(log.Fields{"request_id": request_id, "user_ip": user_ip})
@@ -221,14 +221,14 @@ You can add hooks for logging levels. For example to send errors to an exception
 tracking service on `Error`, `Fatal` and `Panic`, info to StatsD or log to
 multiple places simultaneously, e.g. syslog.
 
-Hlog comes with [built-in hooks](hooks/). Add those, or your custom hook, in
+hlog comes with [built-in hooks](hooks/). Add those, or your custom hook, in
 `init`:
 
 ```go
 import (
-  log "github.com/sirupsen/Hlog"
-  "gopkg.in/gemnasium/Hlog-airbrake-hooks.v2" // the package is named "airbrake"
-  Hlog_syslog "github.com/sirupsen/Hlog/hooks/systemlog"
+  log "github.com/adminhmi/hlog"
+  "gopkg.in/gemnasium/hlog-airbrake-hooks.v2" // the package is named "airbrake"
+  hlog_syslog "github.com/adminhmi/hlog/hooks/systemlog"
   "log/systemlog"
 )
 
@@ -238,7 +238,7 @@ func init() {
   // an exception tracker. You can create custom hooks, see the Hooks section.
   log.AddHook(airbrake.NewHook(123, "xyz", "production"))
 
-  hook, err := Hlog_syslog.NewSyslogHook("udp", "localhost:514", syslog.LOG_INFO, "")
+  hook, err := hlog_syslog.NewSyslogHook("udp", "localhost:514", syslog.LOG_INFO, "")
   if err != nil {
     log.Error("Unable to connect to local systemlog daemon")
   } else {
@@ -248,12 +248,12 @@ func init() {
 ```
 Note: Syslog hook also support connecting to local syslog (Ex. "/dev/log" or "/var/run/syslog" or "/var/run/log"). For the detail, please check the [syslog hook README](hooks/systemlog/README.md).
 
-A list of currently known service hooks can be found in this wiki [page](https://github.com/sirupsen/Hlog/wiki/Hooks)
+A list of currently known service hooks can be found in this wiki [page](https://github.com/sirupsen/hlog/wiki/Hooks)
 
 
 #### Level logging
 
-Hlog has seven logging levels: Trace, Debug, Info, Warning, Error, Fatal and Panic.
+hlog has seven logging levels: Trace, Debug, Info, Warning, Error, Fatal and Panic.
 
 ```go
 log.Trace("Something very low level.")
@@ -275,7 +275,7 @@ that severity or anything above it:
 log.SetLevel(log.InfoLevel)
 ```
 
-It may be useful to set `log.Level = Hlog.DebugLevel` in a debug or verbose
+It may be useful to set `log.Level = hlog.DebugLevel` in a debug or verbose
 environment if your application has that.
 
 #### Entries
@@ -290,7 +290,7 @@ automatically added to all logging events:
 
 #### Environments
 
-Hlog has no notion of environment.
+hlog has no notion of environment.
 
 If you wish for hooks and formatters to only be used in specific environments,
 you should handle that yourself. For example, if your application has a global
@@ -299,7 +299,7 @@ could do:
 
 ```go
 import (
-  log "github.com/sirupsen/Hlog"
+  log "github.com/sirupsen/hlog"
 )
 
 init() {
@@ -314,7 +314,7 @@ init() {
 }
 ```
 
-This configuration is how `Hlog` was intended to be used, but JSON in
+This configuration is how `hlog` was intended to be used, but JSON in
 production is mostly only useful if you do log aggregation with tools like
 Splunk or Logstash.
 
@@ -322,7 +322,7 @@ Splunk or Logstash.
 
 The built-in logging formatters are:
 
-* `Hlog.TextFormatter`. Logs the event in colors if stdout is a tty, otherwise
+* `hlog.TextFormatter`. Logs the event in colors if stdout is a tty, otherwise
   without colors.
   * *Note:* to force colored output when there is no TTY, set the `ForceColors`
     field to `true`.  To force no colored output even if there is a TTY  set the
@@ -331,9 +331,9 @@ The built-in logging formatters are:
   * When colors are enabled, levels are truncated to 4 characters by default. To disable
     truncation set the `DisableLevelTruncation` field to `true`.
   * When outputting to a TTY, it's often helpful to visually scan down a column where all the levels are the same width. Setting the `PadLevelText` field to `true` enables this behavior, by adding padding to the level text.
-  * All options are listed in the [generated docs](https://godoc.org/github.com/sirupsen/Hlog#TextFormatter).
-* `Hlog.JSONFormatter`. Logs fields as JSON.
-  * All options are listed in the [generated docs](https://godoc.org/github.com/sirupsen/Hlog#JSONFormatter).
+  * All options are listed in the [generated docs](https://godoc.org/github.com/sirupsen/hlog#TextFormatter).
+* `hlog.JSONFormatter`. Logs fields as JSON.
+  * All options are listed in the [generated docs](https://godoc.org/github.com/sirupsen/hlog#JSONFormatter).
 
 
 
@@ -363,7 +363,7 @@ func (f *MyJSONFormatter) Format(entry *Entry) ([]byte, error) {
 
 #### Logger as an `io.Writer`
 
-Hlog can be transformed into an `io.Writer`. That writer is the end of an `io.Pipe` and it is your responsibility to close it.
+hlog can be transformed into an `io.Writer`. That writer is the end of an `io.Pipe` and it is your responsibility to close it.
 
 ```go
 w := logger.Writer()
@@ -371,7 +371,7 @@ defer w.Close()
 
 srv := http.Server{
     // create a stdlib log.Logger that writes to
-    // Hlog.Logger.
+    // hlog.Logger.
     ErrorLog: log.New(w, "", 0),
 }
 ```
@@ -382,12 +382,12 @@ and hooks. The level for those entries is `info`.
 This means that we can override the standard library logger easily:
 
 ```go
-logger := Hlog.New()
-logger.Formatter = &Hlog.JSONFormatter{}
+logger := hlog.New()
+logger.Formatter = &hlog.JSONFormatter{}
 
-// Use Hlog for standard log output
+// Use hlog for standard log output
 // Note that `log` here references stdlib's log
-// Not Hlog imported under the name `log`.
+// Not hlog imported under the name `log`.
 log.SetOutput(logger.Writer())
 ```
 
@@ -395,15 +395,15 @@ log.SetOutput(logger.Writer())
 
 #### Testing
 
-Hlog has a built in facility for asserting the presence of log messages. This is implemented through the `test` hook and provides:
+hlog has a built in facility for asserting the presence of log messages. This is implemented through the `test` hook and provides:
 
 * decorators for existing logger (`test.NewLocal` and `test.NewGlobal`) which basically just adds the `test` hook
 * a test logger (`test.NewNullLogger`) that just records log messages (and does not output any):
 
 ```go
 import(
-  "github.com/sirupsen/Hlog"
-  "github.com/sirupsen/Hlog/hooks/test"
+  "github.com/adminhmi/hlog"
+  "github.com/adminhmi/hlog/hooks/test"
   "github.com/stretchr/testify/assert"
   "testing"
 )
@@ -413,7 +413,7 @@ func TestSomething(t*testing.T){
   logger.Error("Helloerror")
 
   assert.Equal(t, 1, len(hook.Entries))
-  assert.Equal(t, Hlog.ErrorLevel, hook.LastEntry().Level)
+  assert.Equal(t, hlog.ErrorLevel, hook.LastEntry().Level)
   assert.Equal(t, "Helloerror", hook.LastEntry().Message)
 
   hook.Reset()
@@ -423,9 +423,9 @@ func TestSomething(t*testing.T){
 
 #### Fatal handlers
 
-Hlog can register one or more functions that will be called when any `fatal`
+hlog can register one or more functions that will be called when any `fatal`
 level message is logged. The registered handlers will be executed before
-Hlog performs an `os.Exit(1)`. This behavior may be helpful if callers need
+hlog performs an `os.Exit(1)`. This behavior may be helpful if callers need
 to gracefully shutdown. Unlike a `panic("Something went wrong...")` call which can be intercepted with a deferred `recover` a call to `os.Exit(1)` can not be intercepted.
 
 ```
@@ -433,7 +433,7 @@ to gracefully shutdown. Unlike a `panic("Something went wrong...")` call which c
 handler := func() {
   // gracefully shutdown something...
 }
-Hlog.RegisterExitHandler(handler)
+hlog.RegisterExitHandler(handler)
 ...
 ```
 
