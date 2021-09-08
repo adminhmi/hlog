@@ -13,20 +13,17 @@ import (
 )
 
 var (
-
 	// qualified package name, cached at first use
 	logPackage string
-
 	// Positions in the call stack when tracing to report the calling method
 	minimumCallerDepth int
-
 	// Used for caller information initialisation
 	callerInitOnce sync.Once
 )
 
 const (
 	maximumCallerDepth int = 25
-	knownhlogFrames    int = 4
+	knownHlogFrames    int = 4
 )
 
 func init() {
@@ -34,38 +31,30 @@ func init() {
 	minimumCallerDepth = 1
 }
 
-// Defines the key when adding errors using WithError.
+// ErrorKey Defines the key when adding errors using WithError.
 var ErrorKey = "error"
 
-// An entry is the final or intermediate hlog logging entry. It contains all
+// Entry An entry is the final or intermediate hlog logging entry. It contains all
 // the fields passed with WithField{,s}. It's finally logged when Trace, Debug,
 // Info, Warn, Error, Fatal or Panic is called on it. These objects can be
 // reused and passed around as much as you wish to avoid field duplication.
 type Entry struct {
 	Logger *Logger
-
 	// Contains all the fields set by the user.
 	Data Fields
-
 	// Time at which the log entry was created
 	Time time.Time
-
 	// Level the log entry was logged at: Trace, Debug, Info, Warn, Error, Fatal or Panic
 	// This field will be set on entry firing and the value will be equal to the one in Logger struct field.
 	Level Level
-
 	// Calling method, with package name
 	Caller *runtime.Frame
-
 	// Message passed to Trace, Debug, Info, Warn, Error, Fatal or Panic
 	Message string
-
 	// When formatter is called in entry.log(), a Buffer may be set to entry
 	Buffer *bytes.Buffer
-
 	// Contains the context set by the user. Useful for hooks processing etc.
 	Context context.Context
-
 	// err may contain a field formatting error
 	err string
 }
@@ -86,7 +75,7 @@ func (entry *Entry) Dup() *Entry {
 	return &Entry{Logger: entry.Logger, Data: data, Time: entry.Time, Context: entry.Context, err: entry.err}
 }
 
-// Returns the bytes representation of this entry from the formatter.
+// Bytes Returns the bytes' representation of this entry from the formatter.
 func (entry *Entry) Bytes() ([]byte, error) {
 	return entry.Logger.Formatter.Format(entry)
 }
@@ -102,12 +91,12 @@ func (entry *Entry) String() (string, error) {
 	return str, nil
 }
 
-// Add an error as single field (using the key defined in ErrorKey) to the Entry.
+// WithError Add an error as single field (using the key defined in ErrorKey) to the Entry.
 func (entry *Entry) WithError(err error) *Entry {
 	return entry.WithField(ErrorKey, err)
 }
 
-// Add a context to the Entry.
+// WithContext Add a context to the Entry.
 func (entry *Entry) WithContext(ctx context.Context) *Entry {
 	dataCopy := make(Fields, len(entry.Data))
 	for k, v := range entry.Data {
@@ -116,12 +105,12 @@ func (entry *Entry) WithContext(ctx context.Context) *Entry {
 	return &Entry{Logger: entry.Logger, Data: dataCopy, Time: entry.Time, err: entry.err, Context: ctx}
 }
 
-// Add a single field to the Entry.
+// WithField Add a single field to the Entry.
 func (entry *Entry) WithField(key string, value interface{}) *Entry {
 	return entry.WithFields(Fields{key: value})
 }
 
-// Add a map of fields to the Entry.
+// WithFields Add a map of fields to the Entry.
 func (entry *Entry) WithFields(fields Fields) *Entry {
 	data := make(Fields, len(entry.Data)+len(fields))
 	for k, v := range entry.Data {
@@ -150,7 +139,7 @@ func (entry *Entry) WithFields(fields Fields) *Entry {
 	return &Entry{Logger: entry.Logger, Data: data, Time: entry.Time, err: fieldErr, Context: entry.Context}
 }
 
-// Overrides the time of the Entry.
+// WithTime Overrides the time of the Entry.
 func (entry *Entry) WithTime(t time.Time) *Entry {
 	dataCopy := make(Fields, len(entry.Data))
 	for k, v := range entry.Data {
@@ -160,7 +149,7 @@ func (entry *Entry) WithTime(t time.Time) *Entry {
 }
 
 // getPackageName reduces a fully qualified function name to the package name
-// There really ought to be to be a better way...
+// There really ought to be a better way...
 func getPackageName(f string) string {
 	for {
 		lastPeriod := strings.LastIndex(f, ".")
@@ -171,7 +160,6 @@ func getPackageName(f string) string {
 			break
 		}
 	}
-
 	return f
 }
 
@@ -181,7 +169,6 @@ func getCaller() *runtime.Frame {
 	callerInitOnce.Do(func() {
 		pcs := make([]uintptr, maximumCallerDepth)
 		_ = runtime.Callers(0, pcs)
-
 		// dynamic get the package name and the minimum caller depth
 		for i := 0; i < maximumCallerDepth; i++ {
 			funcName := runtime.FuncForPC(pcs[i]).Name()
@@ -190,24 +177,19 @@ func getCaller() *runtime.Frame {
 				break
 			}
 		}
-
-		minimumCallerDepth = knownhlogFrames
+		minimumCallerDepth = knownHlogFrames
 	})
-
-	// Restrict the lookback frames to avoid runaway lookups
+	// Restrict the look back frames to avoid runaway lookups
 	pcs := make([]uintptr, maximumCallerDepth)
 	depth := runtime.Callers(minimumCallerDepth, pcs)
 	frames := runtime.CallersFrames(pcs[:depth])
-
 	for f, again := frames.Next(); again; f, again = frames.Next() {
 		pkg := getPackageName(f.Function)
-
 		// If the caller isn't part of this package, we're done
 		if pkg != logPackage {
 			return &f //nolint:scopelint
 		}
 	}
-
 	// if we got here, we failed to find the caller's context
 	return nil
 }
@@ -220,25 +202,19 @@ func (entry Entry) HasCaller() (has bool) {
 
 func (entry *Entry) log(level Level, msg string) {
 	var buffer *bytes.Buffer
-
 	newEntry := entry.Dup()
-
 	if newEntry.Time.IsZero() {
 		newEntry.Time = time.Now()
 	}
-
 	newEntry.Level = level
 	newEntry.Message = msg
-
 	newEntry.Logger.mu.Lock()
 	reportCaller := newEntry.Logger.ReportCaller
 	bufPool := newEntry.getBufferPool()
 	newEntry.Logger.mu.Unlock()
-
 	if reportCaller {
 		newEntry.Caller = getCaller()
 	}
-
 	newEntry.fireHooks()
 	buffer = bufPool.Get()
 	defer func() {
@@ -248,9 +224,7 @@ func (entry *Entry) log(level Level, msg string) {
 	}()
 	buffer.Reset()
 	newEntry.Buffer = buffer
-
 	newEntry.write()
-
 	newEntry.Buffer = nil
 
 	// To avoid Entry#log() returning a value that only would make sense for
@@ -339,8 +313,7 @@ func (entry *Entry) Panic(args ...interface{}) {
 	entry.Log(PanicLevel, args...)
 }
 
-// Entry Printf family functions
-
+// Logf Entry Printf family functions
 func (entry *Entry) Logf(level Level, format string, args ...interface{}) {
 	if entry.Logger.IsLevelEnabled(level) {
 		entry.Log(level, fmt.Sprintf(format, args...))
@@ -388,7 +361,7 @@ func (entry *Entry) Panicf(format string, args ...interface{}) {
 
 func (entry *Entry) Logln(level Level, args ...interface{}) {
 	if entry.Logger.IsLevelEnabled(level) {
-		entry.Log(level, entry.sprintlnn(args...))
+		entry.Log(level, entry.sprintLn(args...))
 	}
 }
 
@@ -433,7 +406,7 @@ func (entry *Entry) Panicln(args ...interface{}) {
 // fmt.Sprintln where spaces are always added between operands, regardless of
 // their type. Instead of vendoring the Sprintln implementation to spare a
 // string allocation, we do the simplest thing.
-func (entry *Entry) sprintlnn(args ...interface{}) string {
+func (entry *Entry) sprintLn(args ...interface{}) string {
 	msg := fmt.Sprintln(args...)
 	return msg[:len(msg)-1]
 }
